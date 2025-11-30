@@ -2,10 +2,6 @@ import os
 import tensorflow as tf
 
 def load_dataset(directory):
-    """
-    Loads reviews from a directory (e.g., 'aclImdb/train' or 'aclImdb/test').
-    Expects 'pos' and 'neg' subdirectories.
-    """
     texts = []
     labels = []
     
@@ -39,7 +35,6 @@ def get_vectorization_layer(vocab_file, max_tokens=20000, output_sequence_length
         vocab = vocab[:max_tokens]
         
     vectorize_layer = tf.keras.layers.TextVectorization(
-        max_tokens=max_tokens,
         output_mode='int',
         output_sequence_length=output_sequence_length,
         vocabulary=vocab

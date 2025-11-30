@@ -9,8 +9,8 @@ app = FastAPI()
 
 # Configuration
 VOCAB_FILE = os.path.join('aclImdb', 'imdb.vocab')
-MAX_TOKENS = 20000
-MAX_LENGTH = 200
+MAX_TOKENS = 10000
+MAX_LENGTH = 150
 MODEL_PATH = 'best_model.keras'
 
 # Global variables
@@ -32,7 +32,6 @@ async def startup_event():
         print(f"Warning: {MODEL_PATH} not found. Please run train.py first.")
         
     # Prepare Vectorization
-    # We re-create the layer with the same vocabulary
     if os.path.exists(VOCAB_FILE):
         vectorize_layer = get_vectorization_layer(VOCAB_FILE, MAX_TOKENS, MAX_LENGTH)
         print("Vectorization layer prepared.")

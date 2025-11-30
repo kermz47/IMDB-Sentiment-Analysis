@@ -10,8 +10,8 @@ from data_loader import load_dataset, get_vectorization_layer
 # Configuration
 VOCAB_FILE = os.path.join('aclImdb', 'imdb.vocab')
 TEST_DIR = os.path.join('aclImdb', 'test')
-MAX_TOKENS = 20000
-MAX_LENGTH = 200
+MAX_TOKENS = 10000
+MAX_LENGTH = 150
 BATCH_SIZE = 32
 
 def main():
@@ -28,40 +28,35 @@ def main():
         print("Error: 'best_model.keras' not found. Run train.py first.")
         return
 
-    # 3. Prepare Vectorization (Must match training)
-    print("Preparing vectorization...")
+    # 3. Prepare Vectorization
+    print("Preparing vectorization layer...")
     vectorize_layer = get_vectorization_layer(VOCAB_FILE, MAX_TOKENS, MAX_LENGTH)
     
-    # Vectorize test data
-    # We need raw texts for analysis, but vectorized for prediction
-    test_ds = tf.data.Dataset.from_tensor_slices(test_texts).batch(BATCH_SIZE)
-    
-    def vectorize_text(text):
-        text = tf.expand_dims(text, -1)
-        return vectorize_layer(text)
-        
-    test_ds_vec = test_ds.map(vectorize_text)
+    # 4. Vectorize Data
+    print("Vectorizing test data...")
+    with tf.device('/CPU:0'):
+        test_texts_vec = vectorize_layer(np.array(test_texts))
 
-    # 4. Predict
+    # 5. Predict
     print("Predicting...")
-    predictions_prob = model.predict(test_ds_vec)
-    predictions = (predictions_prob > 0.5).astype(int).flatten()
+    # Predict returns probabilities, we convert to 0 or 1
+    y_pred_probs = model.predict(test_texts_vec)
+    y_pred = (y_pred_probs > 0.5).astype(int).flatten()
 
-    # 5. Metrics
-    acc = accuracy_score(test_labels, predictions)
-    prec = precision_score(test_labels, predictions)
-    rec = recall_score(test_labels, predictions)
-    f1 = f1_score(test_labels, predictions)
-    cm = confusion_matrix(test_labels, predictions)
-
-    print("\nEvaluation Metrics:")
+    # 6. Calculate Metrics
+    acc = accuracy_score(test_labels, y_pred)
+    prec = precision_score(test_labels, y_pred)
+    rec = recall_score(test_labels, y_pred)
+    f1 = f1_score(test_labels, y_pred)
+    
+    print("\n--- Evaluation Results ---")
     print(f"Accuracy:  {acc:.4f}")
     print(f"Precision: {prec:.4f}")
     print(f"Recall:    {rec:.4f}")
     print(f"F1 Score:  {f1:.4f}")
-    
-    print("\nConfusion Matrix:")
-    print(cm)
+
+    # 7. Confusion Matrix
+    cm = confusion_matrix(test_labels, y_pred)
 
     # Plot Confusion Matrix
     plt.figure(figsize=(6, 5))
@@ -72,42 +67,21 @@ def main():
     plt.savefig('confusion_matrix.png')
     plt.close()
 
-    # 6. Analysis of Examples
-    # Create a DataFrame for easier filtering
-    df = pd.DataFrame({
-        'text': test_texts,
-        'actual': test_labels,
-        'predicted': predictions,
-        'prob': predictions_prob.flatten()
-    })
-
-    # Correctly classified
-    correct_pos = df[(df['actual'] == 1) & (df['predicted'] == 1)].head(5)
-    correct_neg = df[(df['actual'] == 0) & (df['predicted'] == 0)].head(5)
-
-    # Incorrectly classified
-    # False Negatives (Actual Pos, Pred Neg)
-    false_neg = df[(df['actual'] == 1) & (df['predicted'] == 0)].head(5)
-    # False Positives (Actual Neg, Pred Pos)
-    false_pos = df[(df['actual'] == 0) & (df['predicted'] == 1)].head(5)
-
-    print("\n--- Analysis Examples ---")
+    # 8. Show Examples (Best and Worst)
+    # Correct predictions
+    correct_indices = np.where(y_pred == test_labels)[0]
+    incorrect_indices = np.where(y_pred != test_labels)[0]
     
-    print("\nTop 5 Correctly Classified Positive Reviews:")
-    for i, row in correct_pos.iterrows():
-        print(f"[{row['prob']:.4f}] {row['text'][:100]}...")
+    print("\n--- 5 Correctly Classified Examples ---")
+    for i in correct_indices[:5]:
+        sentiment = "Positive" if test_labels[i] == 1 else "Negative"
+        print(f"[{sentiment}] {test_texts[i][:100]}...")
 
-    print("\nTop 5 Correctly Classified Negative Reviews:")
-    for i, row in correct_neg.iterrows():
-        print(f"[{row['prob']:.4f}] {row['text'][:100]}...")
-
-    print("\nTop 5 False Negatives (Actual Pos, Predicted Neg):")
-    for i, row in false_neg.iterrows():
-        print(f"[{row['prob']:.4f}] {row['text'][:100]}...")
-
-    print("\nTop 5 False Positives (Actual Neg, Predicted Pos):")
-    for i, row in false_pos.iterrows():
-        print(f"[{row['prob']:.4f}] {row['text'][:100]}...")
+    print("\n--- 5 Incorrectly Classified Examples ---")
+    for i in incorrect_indices[:5]:
+        actual = "Positive" if test_labels[i] == 1 else "Negative"
+        pred = "Positive" if y_pred[i] == 1 else "Negative"
+        print(f"[Actual: {actual}, Pred: {pred}] {test_texts[i][:100]}...")
 
 if __name__ == "__main__":
     main()
